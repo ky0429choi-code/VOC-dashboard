@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoC 분석 대시보드 | 삼성웰스토리</title>
+<script src="./assets/vendor/xlsx.full.min.js"></script>
+<style>
+:root {
+  --navy:#1B3558; --blue:#2D7DD2; --sky:#EBF4FF;
+  --green:#1A8A4A; --green-lt:#D4EDDA;
+  --red:#C0392B;   --red-lt:#FADBD8;
+  --orange:#D47F00;--orange-lt:#FEF3CD;
+  --gray-bg:#F4F7FB; --gray1:#EEF2F7; --gray2:#C8D8E8;
+  --text-dk:#1B3558; --text-md:#5D7A8A; --white:#FFFFFF;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"맑은 고딕",Malgun Gothic,sans-serif;background:var(--gray-bg);color:var(--text-dk);min-height:100vh}
+
+/* ── 헤더 ─────────────────────────────────────── */
+.app-header{background:var(--navy);color:#fff;padding:14px 28px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.app-header h1{font-size:16px;font-weight:700;letter-spacing:-.3px}
+.app-header span{font-size:12px;opacity:.6;margin-left:auto}
+.badge{background:rgba(255,255,255,.15);border-radius:4px;padding:3px 10px;font-size:11px}
+
+/* ── 업로드 존 ───────────────────────────────── */
+#upload-section{max-width:780px;margin:48px auto;padding:0 24px}
+.upload-card{background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(27,53,88,.08);padding:48px 40px;text-align:center}
+.upload-card h2{font-size:22px;color:var(--navy);margin-bottom:8px}
+.upload-card p{color:var(--text-md);font-size:13px;margin-bottom:32px;line-height:1.7}
+
+.drop-zone{border:2px dashed var(--gray2);border-radius:12px;padding:40px;cursor:pointer;transition:.2s;background:var(--gray-bg);position:relative}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--blue);background:var(--sky)}
+.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.drop-icon{font-size:40px;margin-bottom:12px}
+.drop-zone h3{font-size:15px;color:var(--navy);margin-bottom:6px}
+.drop-zone p{font-size:12px;color:var(--text-md)}
+
+.divider{display:flex;align-items:center;gap:12px;margin:24px 0;color:var(--text-md);font-size:12px}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--gray2)}
+
+.url-row{display:flex;gap:8px}
+.url-input{flex:1;border:1.5px solid var(--gray2);border-radius:8px;padding:11px 14px;font-size:13px;font-family:inherit;transition:.2s;outline:none}
+.url-input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(45,125,210,.12)}
+.btn{padding:11px 20px;border:none;border-radius:8px;font-size:13px;font-family:inherit;cursor:pointer;font-weight:600;transition:.15s}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-primary:hover{background:#1d6abf}
+.btn-sm{padding:7px 14px;font-size:12px}
+.btn-outline{background:#fff;border:1.5px solid var(--gray2);color:var(--text-dk)}
+.btn-outline:hover{border-color:var(--blue);color:var(--blue)}
+
+/* ── 진행 표시 ───────────────────────────────── */
+#progress-section{display:none;max-width:780px;margin:48px auto;padding:0 24px;text-align:center}
+.progress-card{background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(27,53,88,.08);padding:40px}
+.progress-title{font-size:16px;font-weight:700;color:var(--navy);margin-bottom:20px}
+.progress-bar-outer{background:var(--gray1);border-radius:99px;height:8px;overflow:hidden;margin-bottom:12px}
+.progress-bar-inner{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--blue),#56a3db);transition:width .3s ease;width:0}
+.progress-text{font-size:13px;color:var(--text-md)}
+
+/* ── 결과 섹션 ───────────────────────────────── */
+#result-section{display:none;max-width:1280px;margin:0 auto;padding:24px}
+
+/* ── 결과 상단 바 ───────────────────────────── */
+.result-topbar{background:var(--navy);color:#fff;border-radius:12px;padding:16px 24px;display:flex;align-items:center;gap:16px;margin-bottom:20px}
+.result-topbar h2{font-size:15px;font-weight:700}
+.result-topbar .meta{font-size:12px;opacity:.7;margin-left:auto;display:flex;gap:16px;align-items:center}
+.btn-print{background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit}
+.btn-print:hover{background:rgba(255,255,255,.25)}
+.btn-reset{background:rgba(255,255,255,.1);color:#fff;border:1.5px solid rgba(255,255,255,.3);border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit}
+
+/* ── KPI 카드 ────────────────────────────────── */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+.kpi-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(27,53,88,.06);border-top:4px solid var(--blue);position:relative;overflow:hidden}
+.kpi-card::after{content:attr(data-icon);position:absolute;right:16px;top:14px;font-size:28px;opacity:.15}
+.kpi-label{font-size:11px;color:var(--text-md);font-weight:600;letter-spacing:.3px;text-transform:uppercase;margin-bottom:8px}
+.kpi-val{font-size:26px;font-weight:800;color:var(--navy);line-height:1.1}
+.kpi-sub{font-size:11px;color:var(--text-md);margin-top:4px}
+.kpi-card.k-green{border-top-color:var(--green)}
+.kpi-card.k-red{border-top-color:var(--red)}
+.kpi-card.k-orange{border-top-color:var(--orange)}
+
+/* ── 파이 행 ─────────────────────────────────── */
+.pie-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+.pie-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(27,53,88,.06)}
+.pie-card h3{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:16px;padding-bottom:10px;border-bottom:1.5px solid var(--gray1)}
+
+.mini-pie-list{display:flex;flex-direction:column;gap:8px}
+.mini-pie-item{display:flex;align-items:center;gap:10px}
+.mini-pie-label{font-size:12px;color:var(--text-dk);width:90px;flex-shrink:0}
+.mini-pie-bar-outer{flex:1;background:var(--gray1);border-radius:99px;height:10px;overflow:hidden}
+.mini-pie-bar-inner{height:100%;border-radius:99px;transition:width 1s ease .2s}
+.mini-pie-pct{font-size:12px;font-weight:700;color:var(--text-md);width:34px;text-align:right}
+.mini-pie-cnt{font-size:11px;color:var(--text-md);width:36px;text-align:right}
+
+/* ── 계층 테이블 (네이버식) ─────────────────── */
+.section-card{background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(27,53,88,.06);margin-bottom:20px;overflow:hidden}
+.section-card h3{font-size:14px;font-weight:700;color:var(--navy);padding:18px 22px 16px;border-bottom:1.5px solid var(--gray1);display:flex;align-items:center;gap:8px}
+.section-card h3 small{font-size:11px;font-weight:400;color:var(--text-md);margin-left:auto}
+
+.hier-table{width:100%;border-collapse:collapse}
+.hier-table th{background:var(--navy);color:#fff;font-size:11px;font-weight:600;padding:10px 14px;text-align:center;letter-spacing:.3px;white-space:nowrap}
+.hier-table th:first-child,.hier-table td:first-child{text-align:left;padding-left:18px}
+
+/* 대분류 행 */
+.row-major td{background:var(--sky);font-weight:700;font-size:13px;color:var(--navy);border-top:2px solid var(--blue);padding:11px 14px}
+.row-major .major-badge{display:inline-flex;align-items:center;gap:8px}
+.row-major .major-total{font-size:12px;color:var(--text-md);font-weight:400;margin-left:6px}
+.row-major .major-pct-big{font-size:16px;font-weight:800;color:var(--blue)}
+
+/* 소분류 행 */
+.row-minor td{padding:9px 14px;font-size:12px;border-bottom:1px solid var(--gray1)}
+.row-minor:nth-child(even) td{background:#FAFCFF}
+.row-minor:hover td{background:var(--sky);transition:.1s}
+.minor-name{color:var(--text-dk);font-weight:500}
+.num-cell{text-align:center;color:var(--text-dk);font-weight:600}
+.pct-cell{text-align:center;color:var(--text-md);font-size:12px}
+
+.hier-bar-outer{width:140px;background:var(--gray1);border-radius:99px;height:8px;display:inline-block;vertical-align:middle}
+.hier-bar-inner{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--blue),#6db5ef);transition:width 1.2s ease .1s}
+.hier-bar-cell{display:flex;align-items:center;gap:8px;min-width:180px}
+
+.tag-positive{display:inline-block;background:var(--green-lt);color:var(--green);border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600}
+.tag-negative{display:inline-block;background:var(--red-lt);color:var(--red);border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600}
+.tag-neutral{display:inline-block;background:var(--gray1);color:var(--text-md);border-radius:4px;padding:1px 7px;font-size:11px}
+
+/* ── 코너 테이블 ─────────────────────────────── */
+.corner-table{width:100%;border-collapse:collapse}
+.corner-table th{background:var(--navy);color:#fff;font-size:11px;font-weight:600;padding:10px 14px;text-align:center;letter-spacing:.3px}
+.corner-table th:first-child{text-align:left;padding-left:18px}
+.corner-table td{padding:10px 14px;font-size:12px;border-bottom:1px solid var(--gray1);text-align:center}
+.corner-table td:first-child{text-align:left;font-weight:700;color:var(--navy)}
+.corner-table tr:nth-child(even) td{background:#FAFCFF}
+.score-good{color:var(--green);font-weight:700}
+.score-ok{color:var(--orange);font-weight:700}
+.score-bad{color:var(--red);font-weight:700}
+.rank-badge{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;margin-right:6px}
+.rank-1{background:#FFD700;color:#5a4000}
+.rank-2{background:#C0C0C0;color:#3a3a3a}
+.rank-3{background:#CD7F32;color:#fff}
+.rank-n{background:var(--gray1);color:var(--text-md)}
+
+/* ── 알림 박스 ───────────────────────────────── */
+.alert-header{background:var(--red);color:#fff;padding:12px 22px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px}
+.alert-table{width:100%;border-collapse:collapse}
+.alert-table th{background:#f8d7da;color:var(--red);font-size:11px;font-weight:700;padding:9px 14px;text-align:left;border-bottom:1.5px solid #f1aeb5}
+.alert-table td{padding:9px 14px;font-size:12px;border-bottom:1px solid #fce4e4;vertical-align:top}
+.alert-table tr:last-child td{border-bottom:none}
+.alert-table tr:nth-child(even) td{background:#fff8f8}
+.score-star{color:var(--red);font-weight:700}
+
+/* ── 공통 ────────────────────────────────────── */
+.stars{color:#F4A31A;letter-spacing:-1px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+
+@media print{
+  .app-header,.btn-print,.btn-reset,#upload-section,#progress-section{display:none!important}
+  #result-section{display:block!important;padding:0}
+  .section-card,.kpi-card{box-shadow:none;border:1px solid #ddd}
+}
+@media(max-width:900px){
+  .kpi-row{grid-template-columns:1fr 1fr}
+  .pie-row{grid-template-columns:1fr}
+  .grid-2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- 앱 헤더 -->
+<header class="app-header">
+  <span style="font-size:20px">🍽️</span>
+  <h1>식당 만족도 VoC 분석 대시보드</h1>
+  <span class="badge">삼성웰스토리 단체급식</span>
+  <span>원본 데이터 외부 전송 없음 · 브라우저 로컬 분석 🔒</span>
+</header>
+
+<!-- 업로드 섹션 -->
+<section id="upload-section">
+  <div class="upload-card">
+    <h2>📊 엑셀 파일을 불러오세요</h2>
+    <p>사내 PC에 저장된 VOC 로우데이터 엑셀(.xlsx/.xls/.csv)을 직접 선택하세요.<br>
+       분석은 현재 브라우저 메모리 안에서만 수행되며, 원본 데이터는 외부 서버로 업로드·저장·전송되지 않습니다.</p>
+
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+      <div class="drop-icon">📂</div>
+      <h3>파일을 여기에 드래그하거나 클릭하여 선택</h3>
+      <p>지원 형식: .xlsx · .xls · .csv &nbsp;|&nbsp; 최대 ~5,000행</p>
+    </div>
+
+    <div style="margin-top:22px;background:#FFF8E6;border:1px solid #F1D28A;border-radius:10px;padding:14px 18px;text-align:left">
+      <p style="font-size:12px;color:#7A5A00;line-height:1.8;margin:0">
+        <strong>🔐 보안 운영 기준</strong><br>
+        이 도구는 GitHub Pages 링크로 화면과 분석 로직만 제공합니다. VOC 원본 파일은 사용자가 직접 선택한 뒤
+        브라우저 내부에서만 읽으며, URL 업로드·Raw URL 불러오기·서버 저장 기능은 사용하지 않습니다.
+      </p>
+    </div>
+
+    <div style="margin-top:20px">
+      <button class="btn btn-outline btn-sm" onclick="loadSampleData()">📋 샘플 데이터로 미리보기</button>
+    </div>
+
+    <div style="margin-top:28px;background:var(--sky);border-radius:10px;padding:16px 20px;text-align:left">
+      <p style="font-size:12px;color:var(--text-md);line-height:1.8">
+        <strong style="color:var(--navy)">📌 엑셀 컬럼 자동 인식 기준</strong><br>
+        날짜: <code>작성일 / 응답일 / 날짜</code> &nbsp;|&nbsp;
+        코너: <code>코너 / 식당 / 주이용식당</code> &nbsp;|&nbsp;
+        점수: <code>만족도 / 점수 / 평점</code><br>
+        의견: <code>의견 / VoC / 서술 / 불만 / 피드백</code> &nbsp;|&nbsp;
+        식사유형: <code>식사유형 / 구분 / 유형</code>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- 진행 표시 -->
+<section id="progress-section">
+  <div class="progress-card">
+    <div class="progress-title" id="progressTitle">📊 데이터 분석 중...</div>
+    <div class="progress-bar-outer">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="progress-text" id="progressText">초기화 중...</div>
+  </div>
+</section>
+
+<!-- 결과 섹션 -->
+<section id="result-section">
+
+  <!-- 상단 바 -->
+  <div class="result-topbar">
+    <span style="font-size:18px">📊</span>
+    <h2 id="resultTitle">분석 결과</h2>
+    <div class="meta">
+      <span id="resultMeta"></span>
+      <button class="btn-print" onclick="window.print()">🖨️ 인쇄</button>
+      <button class="btn-print" onclick="downloadReportHtml()">💾 보고서 저장</button>
+      <button class="btn-reset" onclick="resetApp()">↩ 새 파일</button>
+    </div>
+  </div>
+
+  <!-- KPI 카드 -->
+  <div class="kpi-row" id="kpiRow"></div>
+
+  <!-- 파이 분포 -->
+  <div class="pie-row" id="pieRow"></div>
+
+  <!-- 2단 계층 테이블 -->
+  <div class="section-card">
+    <h3>📋 카테고리별 VoC 분석 <small>대분류 > 소분류 2단 계층</small></h3>
+    <table class="hier-table">
+      <thead>
+        <tr>
+          <th style="width:130px">대분류</th>
+          <th style="width:160px">소분류</th>
+          <th style="width:70px">건수</th>
+          <th style="width:60px">비율</th>
+          <th>분포</th>
+          <th style="width:80px">긍정</th>
+          <th style="width:80px">부정</th>
+          <th style="width:90px">의견유형</th>
+        </tr>
+      </thead>
+      <tbody id="hierTableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- 코너별 현황 + 즉시조치 -->
+  <div class="grid-2">
+
+    <!-- 코너별 -->
+    <div class="section-card">
+      <h3>🏪 코너/식당별 현황 <small>만족도 내림차순</small></h3>
+      <table class="corner-table">
+        <thead>
+          <tr>
+            <th>코너</th><th>응답</th><th>평균점수</th><th>별점</th><th>긍정율</th><th>주요 불만</th>
+          </tr>
+        </thead>
+        <tbody id="cornerTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- 즉시 조치 -->
+    <div class="section-card" style="overflow:hidden">
+      <div class="alert-header">⚠️ 즉시 조치 필요 VoC &nbsp;<span style="font-size:11px;font-weight:400;opacity:.8">만족도 1~2점 최근 의견</span></div>
+      <table class="alert-table">
+        <thead>
+          <tr><th>일자</th><th>코너</th><th>점수</th><th>주요 의견</th><th>분류</th></tr>
+        </thead>
+        <tbody id="alertTableBody"></tbody>
+      </table>
+    </div>
+
+  </div>
+
+</section>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  분류 사전
+// ═══════════════════════════════════════════════════════════════
+const CATEGORIES = {
+  "메뉴구성": {
+    "메뉴다양성": ["다양","다채","단조","종류","선택지","옵션","풍성","여러가지"],
+    "메뉴중복":   ["중복","같은메뉴","또나","매번","맨날","지겹","반복","똑같"],
+    "한끼구성":   ["구성","한끼","세트","알차","균형","영양","반찬구성","밸런스","부실","허술"],
+  },
+  "음식품질": {
+    "맛(품질전반)": ["맛있","맛없","맛나","품질","수준","훌륭","별로","형편없","맛이","맛 "],
+    "양/크기":      ["양이","적어","많아","크기","부족","충분","모자라","배부","푸짐","빈약"],
+    "냄새":         ["냄새","비린","구린","고소","향기","악취"],
+    "온도":         ["뜨겁","차갑","식어","미지근","따뜻","온도","뜨끈","식은"],
+    "염도":         ["짜","싱겁","간이","맵","달달","달아","간 맞"],
+  },
+  "식당운영": {
+    "동선/배치":       ["동선","배치","이동","경로","좌석","배열","구조","자리배치"],
+    "품절":            ["품절","소진","없어","떨어","재고"],
+    "식당환경(시설)":  ["환경","시설","인테리어","분위기","공간","넓","좁","테이블","소음","시끄"],
+    "대기시간":        ["대기","줄","기다","오래","시간이","빠르","느리","혼잡"],
+    "이용편의":        ["편의","편리","불편","이용","접근","어렵","수월"],
+  },
+  "서비스": {
+    "안내게시물": ["안내","게시","공지","포스터","앱","온라인","홈페이지","메뉴판","표시"],
+    "대인안내":   ["설명","알려","가이드","정보제공","문의","안내받"],
+    "이벤트":     ["이벤트","행사","특별","특식","프로모션","기획메뉴"],
+    "응대태도":   ["불친절","친절","태도","웃음","상냥","무뚝","응대","직원"],
+  },
+  "위생": {
+    "식당위생": ["청결","더럽","깨끗","위생","바닥","청소","테이블위생","식판"],
+    "직원위생": ["장갑","위생복","머리카락","직원위생","위생모","앞치마"],
+    "음식위생": ["이물","벌레","식중독","음식위생","상한","덜익","이물질"],
+  },
+};
+
+const MAJOR_COLORS = {
+  "메뉴구성":"#3B82F6","음식품질":"#10B981","식당운영":"#F59E0B","서비스":"#8B5CF6","위생":"#EF4444"
+};
+
+const POS_KW = ["칭찬","최고","훌륭","감사","좋았","만족","대만족","완벽","친절","맛있","좋아요","맛나","최고예요","감동","훌륭했","기쁘","행복"];
+const NEG_KW = ["불만","실망","최악","화가","짜증","아쉽","문제","개선","부탁","해주세요","해주십시오","불편","안됩니다","않습니다","못","나쁘","불량"];
+const MEAL_TAKE = ["테이크아웃","포장","픽업","take"];
+
+function classifyRow(text, score) {
+  const t = (text || "").toString();
+  // 대분류 / 소분류
+  let bestMajor = "기타", bestMinor = "기타", bestScore = 0;
+  for (const [major, minors] of Object.entries(CATEGORIES)) {
+    for (const [minor, kws] of Object.entries(minors)) {
+      let s = kws.reduce((acc, kw) => acc + (t.includes(kw) ? 1 : 0), 0);
+      if (s > bestScore) { bestScore = s; bestMajor = major; bestMinor = minor; }
+    }
+  }
+  // 의견유형 (칭찬/불만족/기타)
+  const posS = POS_KW.reduce((a,w)=>a+(t.includes(w)?1:0),0);
+  const negS = NEG_KW.reduce((a,w)=>a+(t.includes(w)?1:0),0);
+  let opinionType = "기타";
+  let posScoreForType = posS;
+  let negScoreForType = negS;
+  if (score !== null && score <= 2) negScoreForType += 2;
+  if (score !== null && score >= 4) posScoreForType += 1;
+  if (posScoreForType > negScoreForType) opinionType = "칭찬";
+  else if (negScoreForType > posScoreForType) opinionType = "불만족";
+  // 감성 (긍/부/중)
+  let sentiment = "중립";
+  const ps = posS + (score >= 4 ? 1 : 0);
+  const ns = negS + (score <= 2 ? 2 : 0);
+  if (ps > ns) sentiment = "긍정";
+  else if (ns > ps) sentiment = "부정";
+  // 식사유형
+  const mealType = MEAL_TAKE.some(k => t.includes(k)) ? "테이크아웃" : "일반식";
+  return { major: bestMajor, minor: bestMinor, opinionType, sentiment, mealType };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  컬럼 자동 탐지
+// ═══════════════════════════════════════════════════════════════
+function detectCols(headers) {
+  const hs = headers.map(h => (h||"").toString().toLowerCase());
+  const find = (...kws) => hs.findIndex(h => kws.some(k => h.includes(k)));
+  return {
+    date:     find("작성일","응답일","날짜","일자","date"),
+    corner:   find("코너","식당","주이용","지점","corner","restaurant"),
+    score:    find("만족도","점수","평점","score","rating","별점"),
+    voc:      find("의견","voc","서술","불만","피드백","내용","주관식","comment","feedback"),
+    mealtype: find("식사유형","구분","유형","종류"),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  파일 처리
+// ═══════════════════════════════════════════════════════════════
+async function processWorkbook(wb) {
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+  if (raw.length < 2) { alert("데이터가 없습니다."); return; }
+
+  const headers = raw[0].map(String);
+  const cols    = detectCols(headers);
+  const rows    = raw.slice(1).filter(r => r.some(c => c !== ""));
+
+  if (cols.voc < 0) {
+    hideProgress();
+    document.getElementById("upload-section").style.display = "block";
+    alert("의견/VoC/피드백/내용 컬럼을 찾지 못했습니다.\n\n첫 행에 고객 의견 컬럼명이 있는지 확인해주세요.");
+    return;
+  }
+
+  const total = rows.length;
+  showProgress();
+
+  const results = [];
+  const CHUNK = 200;
+
+  for (let i = 0; i < total; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    for (const row of chunk) {
+      const text  = cols.voc >= 0     ? (row[cols.voc] || "") : "";
+      const score = cols.score >= 0   ? parseFloat(row[cols.score]) : NaN;
+      const date  = cols.date >= 0    ? (row[cols.date] || "") : "";
+      const corner = cols.corner >= 0 ? (row[cols.corner] || "미분류") : "미분류";
+      const mealTypeRaw = cols.mealtype >= 0 ? (row[cols.mealtype] || "") : "";
+
+      if (!String(text).trim()) continue;
+
+      const classified = classifyRow(text, isNaN(score) ? null : score);
+      if (mealTypeRaw) classified.mealType = mealTypeRaw;
+
+      results.push({ text: String(text), score: isNaN(score) ? null : score,
+                     date: String(date), corner: String(corner), ...classified });
+    }
+    const pct = Math.min(100, Math.round((i + CHUNK) / total * 100));
+    setProgress(pct, `분석 중... ${Math.min(i+CHUNK, total).toLocaleString()} / ${total.toLocaleString()}건`);
+    await sleep(0);
+  }
+
+  if (!results.length) {
+    hideProgress();
+    document.getElementById("upload-section").style.display = "block";
+    alert("분석 가능한 VOC 의견 데이터가 없습니다.\n\n의견 컬럼에 텍스트가 입력되어 있는지 확인해주세요.");
+    return;
+  }
+
+  setProgress(100, `✅ 분석 완료! ${results.length.toLocaleString()}건 처리`);
+  await sleep(300);
+  renderDashboard(results);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ═══════════════════════════════════════════════════════════════
+//  대시보드 렌더링
+// ═══════════════════════════════════════════════════════════════
+function renderDashboard(data) {
+  hideProgress();
+  document.getElementById("upload-section").style.display = "none";
+  document.getElementById("result-section").style.display = "block";
+
+  const n = data.length;
+  const scores = data.filter(d => d.score !== null).map(d => d.score);
+  const avgScore = scores.length ? scores.reduce((a,b)=>a+b,0)/scores.length : 0;
+  const posN = data.filter(d => d.sentiment === "긍정").length;
+  const negN = data.filter(d => d.sentiment === "부정").length;
+
+  // 상단 바
+  const dates = data.map(d => d.date).filter(Boolean).sort();
+  document.getElementById("resultTitle").textContent = "식당 만족도 VoC 종합 분석";
+  document.getElementById("resultMeta").textContent =
+    `${dates[0] || ""} ~ ${dates[dates.length-1] || ""}  |  총 ${n.toLocaleString()}건`;
+
+  // KPI
+  const neg_top = topN(data.filter(d=>d.sentiment==="부정").map(d=>d.major), 1)[0];
+  document.getElementById("kpiRow").innerHTML = `
+    ${kpiCard("총 응답 건수", n.toLocaleString()+"건", "수집된 VoC 전체", "","📋","","navy")}
+    ${kpiCard("종합 만족도", avgScore.toFixed(2)+" / 5.0", starsHtml(avgScore), "","⭐","k-blue","")}
+    ${kpiCard("긍정 의견 비율", (posN/n*100).toFixed(0)+"%", `부정 ${(negN/n*100).toFixed(0)}%  |  중립 ${((n-posN-negN)/n*100).toFixed(0)}%`, "","✅","k-green","")}
+    ${kpiCard("최다 불만 유형", neg_top||"—", `총 5개 유형 중 1위`, "","⚠️","k-red","")}
+  `;
+
+  // 파이 분포
+  renderPieRow(data, n);
+
+  // 계층 테이블
+  renderHierTable(data, n);
+
+  // 코너 테이블
+  renderCornerTable(data);
+
+  // 알림
+  renderAlerts(data);
+
+  // 바 애니메이션
+  setTimeout(() => {
+    document.querySelectorAll(".hier-bar-inner").forEach(el => {
+      el.style.width = el.dataset.w;
+    });
+  }, 100);
+}
+
+function kpiCard(label, val, sub, extra, icon, cls) {
+  return `<div class="kpi-card ${cls}" data-icon="${icon}">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-val">${val}</div>
+    <div class="kpi-sub">${sub}</div>
+  </div>`;
+}
+
+function starsHtml(score) {
+  const full = Math.round(score);
+  return `<span class="stars">${"★".repeat(full)}${"☆".repeat(5-full)}</span>`;
+}
+
+function topN(arr, n) {
+  const cnt = {};
+  arr.forEach(v => cnt[v] = (cnt[v]||0) + 1);
+  return Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,n).map(e=>e[0]);
+}
+
+// ── 파이 행 ──────────────────────────────────────────────────
+function renderPieRow(data, n) {
+  const opinionMap = { "칭찬":0, "불만족":0, "기타":0 };
+  const mealMap    = { "일반식":0, "테이크아웃":0 };
+  const sentMap    = { "긍정":0, "부정":0, "중립":0 };
+
+  data.forEach(d => {
+    opinionMap[d.opinionType] = (opinionMap[d.opinionType]||0) + 1;
+    mealMap[d.mealType]       = (mealMap[d.mealType]||0) + 1;
+    sentMap[d.sentiment]      = (sentMap[d.sentiment]||0) + 1;
+  });
+
+  const opColors  = {"칭찬":"#1A8A4A","불만족":"#C0392B","기타":"#7F8C8D"};
+  const mealColors = {"일반식":"#2D7DD2","테이크아웃":"#8B5CF6"};
+  const sentColors  = {"긍정":"#1A8A4A","부정":"#C0392B","중립":"#7F8C8D"};
+
+  document.getElementById("pieRow").innerHTML =
+    miniPieCard("의견 유형 분포", opinionMap, opColors, n) +
+    miniPieCard("식사 유형 분포", mealMap, mealColors, n) +
+    miniPieCard("감성 분포", sentMap, sentColors, n);
+}
+
+function miniPieCard(title, map, colors, total) {
+  const items = Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([label, cnt]) => {
+    const pct = total ? (cnt/total*100).toFixed(1) : 0;
+    const color = colors[label] || "#999";
+    return `<div class="mini-pie-item">
+      <div class="mini-pie-label">${label}</div>
+      <div class="mini-pie-bar-outer">
+        <div class="mini-pie-bar-inner" style="width:${pct}%;background:${color}"></div>
+      </div>
+      <div class="mini-pie-pct">${pct}%</div>
+      <div class="mini-pie-cnt">${cnt.toLocaleString()}</div>
+    </div>`;
+  }).join("");
+
+  return `<div class="pie-card"><h3>${title}</h3><div class="mini-pie-list">${items}</div></div>`;
+}
+
+// ── 계층 테이블 ───────────────────────────────────────────────
+function renderHierTable(data, n) {
+  let html = "";
+  const majors = Object.keys(CATEGORIES);
+  const maxMinorCnt = Math.max(...majors.flatMap(major =>
+    Object.keys(CATEGORIES[major]).map(minor =>
+      data.filter(d=>d.major===major&&d.minor===minor).length
+    )
+  ), 1);
+
+  for (const major of majors) {
+    const majorData = data.filter(d => d.major === major);
+    const majorCnt  = majorData.length;
+    const majorPct  = n ? (majorCnt/n*100).toFixed(1) : 0;
+    const color     = MAJOR_COLORS[major] || "#888";
+
+    html += `<tr class="row-major">
+      <td colspan="8" style="border-left:4px solid ${color}">
+        <span style="color:${color};font-size:16px;margin-right:8px">◆</span>
+        <strong>${major}</strong>
+        <span class="major-total">&nbsp;&nbsp;소계 ${majorCnt.toLocaleString()}건</span>
+        <span class="major-pct-big" style="float:right;color:${color}">${majorPct}%</span>
+      </td>
+    </tr>`;
+
+    const minors = Object.keys(CATEGORIES[major]);
+    for (const minor of minors) {
+      const sub  = majorData.filter(d => d.minor === minor);
+      const cnt  = sub.length;
+      const pct  = majorCnt ? (cnt/majorCnt*100).toFixed(1) : 0;
+      const posC = sub.filter(d=>d.sentiment==="긍정").length;
+      const negC = sub.filter(d=>d.sentiment==="부정").length;
+      const barW = maxMinorCnt ? (cnt/maxMinorCnt*100).toFixed(1) : 0;
+
+      // 감성 비율 태그
+      const dominated = posC > negC ? "긍정우세" : negC > posC ? "부정우세" : "중립";
+      const sentTag = dominated === "긍정우세"
+        ? `<span class="tag-positive">긍 ${posC}</span>`
+        : dominated === "부정우세"
+        ? `<span class="tag-negative">부 ${negC}</span>`
+        : `<span class="tag-neutral">중 ${cnt-posC-negC}</span>`;
+
+      // 의견유형 분포
+      const opinionTypes = {};
+      sub.forEach(d => opinionTypes[d.opinionType] = (opinionTypes[d.opinionType]||0)+1);
+      const opTop = Object.entries(opinionTypes).sort((a,b)=>b[1]-a[1])[0];
+      const opTag = !opTop ? "" : opTop[0]==="칭찬"
+        ? `<span class="tag-positive">칭찬</span>`
+        : opTop[0]==="불만족"
+        ? `<span class="tag-negative">불만족</span>`
+        : `<span class="tag-neutral">기타</span>`;
+
+      html += `<tr class="row-minor">
+        <td></td>
+        <td class="minor-name">${minor}</td>
+        <td class="num-cell">${cnt.toLocaleString()}</td>
+        <td class="pct-cell">${pct}%</td>
+        <td>
+          <div class="hier-bar-cell">
+            <div class="hier-bar-outer">
+              <div class="hier-bar-inner" data-w="${barW}%" style="width:0;background:${color}99"></div>
+            </div>
+            <span style="font-size:11px;color:var(--text-md)">${pct}%</span>
+          </div>
+        </td>
+        <td class="num-cell" style="color:var(--green)">${posC}</td>
+        <td class="num-cell" style="color:var(--red)">${negC}</td>
+        <td>${opTag}</td>
+      </tr>`;
+    }
+  }
+
+  // 기타 행
+  const etcData = data.filter(d=>d.major==="기타");
+  if (etcData.length) {
+    const ePct = n ? (etcData.length/n*100).toFixed(1) : 0;
+    html += `<tr class="row-major">
+      <td colspan="8" style="border-left:4px solid #888">
+        <span style="color:#888;font-size:16px;margin-right:8px">◆</span>
+        <strong>기타</strong>
+        <span class="major-total">&nbsp;&nbsp;소계 ${etcData.length.toLocaleString()}건</span>
+        <span style="float:right;color:#888;font-size:16px;font-weight:800">${ePct}%</span>
+      </td>
+    </tr>`;
+  }
+
+  document.getElementById("hierTableBody").innerHTML = html;
+}
+
+// ── 코너 테이블 ───────────────────────────────────────────────
+function renderCornerTable(data) {
+  const cornerMap = {};
+  data.forEach(d => {
+    if (!cornerMap[d.corner]) cornerMap[d.corner] = [];
+    cornerMap[d.corner].push(d);
+  });
+
+  const sorted = Object.entries(cornerMap)
+    .map(([corner, rows]) => {
+      const sc = rows.filter(r=>r.score!==null).map(r=>r.score);
+      const avg = sc.length ? sc.reduce((a,b)=>a+b,0)/sc.length : 0;
+      const posR = rows.filter(r=>r.sentiment==="긍정").length/rows.length;
+      const negTop = topN(rows.filter(r=>r.sentiment==="부정").map(r=>r.major), 1)[0] || "—";
+      return {corner, cnt:rows.length, avg, posR, negTop};
+    })
+    .sort((a,b) => b.avg - a.avg);
+
+  document.getElementById("cornerTableBody").innerHTML = sorted.map((r, i) => {
+    const rankCls = i===0?"rank-1":i===1?"rank-2":i===2?"rank-3":"rank-n";
+    const scoreCls = r.avg>=4?"score-good":r.avg>=3?"score-ok":"score-bad";
+    return `<tr>
+      <td><span class="rank-badge ${rankCls}">${i+1}</span>${r.corner}</td>
+      <td>${r.cnt.toLocaleString()}건</td>
+      <td class="${scoreCls}">${r.avg.toFixed(2)}</td>
+      <td>${starsHtml(r.avg)}</td>
+      <td style="color:var(--green);font-weight:600">${(r.posR*100).toFixed(0)}%</td>
+      <td style="color:var(--red);font-size:11px">${r.negTop}</td>
+    </tr>`;
+  }).join("");
+}
+
+// ── 알림 테이블 ───────────────────────────────────────────────
+function renderAlerts(data) {
+  const alerts = data
+    .filter(d => d.score !== null && d.score <= 2)
+    .sort((a,b) => {
+      if (a.score !== b.score) return a.score - b.score;
+      return b.date.localeCompare(a.date);
+    })
+    .slice(0, 8);
+
+  document.getElementById("alertTableBody").innerHTML = alerts.map(d => `
+    <tr>
+      <td style="white-space:nowrap">${d.date.toString().slice(0,10)}</td>
+      <td>${d.corner}</td>
+      <td class="score-star">★${d.score}점</td>
+      <td>${String(d.text).slice(0,45)}${d.text.length>45?"…":""}</td>
+      <td><span style="font-size:11px;color:var(--red);font-weight:600">${d.major}<br><span style="color:var(--text-md);font-weight:400">${d.minor}</span></span></td>
+    </tr>
+  `).join("");
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  파일 로드
+// ═══════════════════════════════════════════════════════════════
+document.getElementById("fileInput").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (file) readFile(file);
+});
+
+const dropZone = document.getElementById("dropZone");
+dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+dropZone.addEventListener("drop", e => {
+  e.preventDefault(); dropZone.classList.remove("drag-over");
+  const file = e.dataTransfer.files[0];
+  if (file) readFile(file);
+});
+
+function checkRuntime() {
+  if (typeof XLSX === "undefined") {
+    alert("엑셀 분석 라이브러리(xlsx.full.min.js)를 불러오지 못했습니다.
+
+사내 보안망에서 외부 CDN이 차단될 수 있으므로, ./assets/vendor/xlsx.full.min.js 파일을 GitHub 저장소 내부에 포함해야 합니다.");
+    return false;
+  }
+  if (typeof FileReader === "undefined") {
+    alert("현재 브라우저에서 로컬 파일 읽기 기능을 사용할 수 없습니다. 다른 브라우저 또는 사내 허용 브라우저에서 실행해주세요.");
+    return false;
+  }
+  return true;
+}
+
+function readFile(file) {
+  if (!checkRuntime()) return;
+
+  const allowed = /\.(xlsx|xls|csv)$/i.test(file.name || "");
+  if (!allowed) {
+    alert("지원하지 않는 파일 형식입니다. .xlsx, .xls, .csv 파일만 선택해주세요.");
+    return;
+  }
+
+  showProgress();
+  setProgress(5, "파일을 브라우저에서 읽는 중...");
+
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      setProgress(20, "엑셀 구조를 분석하는 중...");
+      const wb = XLSX.read(e.target.result, { type:"array", cellDates:true });
+      await processWorkbook(wb);
+    } catch (err) {
+      hideProgress();
+      document.getElementById("upload-section").style.display = "block";
+      document.getElementById("result-section").style.display  = "none";
+      alert("파일 분석 중 오류가 발생했습니다.
+
+가능 원인: 파일 손상, 암호화된 엑셀, 지원하지 않는 확장자, 사내 브라우저 정책 제한, 분석 라이브러리 미로딩
+
+상세 오류: " + (err && err.message ? err.message : err));
+    }
+  };
+  reader.onerror = () => {
+    hideProgress();
+    document.getElementById("upload-section").style.display = "block";
+    alert("파일을 읽을 수 없습니다. 사내 보안정책 또는 파일 접근 권한 문제일 수 있습니다.");
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── 샘플 데이터 ───────────────────────────────────────────────
+async function loadSampleData() {
+  if (!checkRuntime()) return;
+  const SAMPLE = [
+    ["작성일","코너/식당","만족도점수","고객의견(VoC)","식사유형"],
+    ["2026-05-05","A코너",2,"오늘 제육볶음 간이 너무 짜서 밥을 더 먹었어요.","일반식"],
+    ["2026-05-05","B코너",2,"국이 다 식어서 미지근하게 먹었습니다. 따뜻하게 배식해주세요.","일반식"],
+    ["2026-05-05","C코너",1,"식기에 물때가 남아 있었어요. 위생 점검 필요합니다.","일반식"],
+    ["2026-05-06","A코너",5,"샐러드바 구성이 훨씬 풍성해지고 신선해서 대만족입니다.","일반식"],
+    ["2026-05-06","C코너",2,"점심시간 대기 줄이 너무 길어서 동선 개선이 필요합니다.","일반식"],
+    ["2026-05-07","B코너",1,"생선구이 안쪽이 덜 익은 것 같아요. 음식위생 점검 부탁드립니다.","일반식"],
+    ["2026-05-07","A코너",5,"배식 조리원분들이 항상 친절하게 웃어주셔서 기분 좋게 먹었습니다.","일반식"],
+    ["2026-05-08","C코너",2,"고기 반찬 양이 너무 적어서 아쉬웠어요. 배식량 늘려주세요.","일반식"],
+    ["2026-05-08","A코너",5,"오늘 특식 메뉴 최고였습니다! 매주 한 번씩 나오면 좋겠네요.","일반식"],
+    ["2026-05-09","B코너",4,"나물 반찬 간이 삼삼해서 건강하게 잘 먹었어요. 만족스럽습니다.","일반식"],
+    ["2026-05-09","C코너",2,"수저통 주변 물기가 너무 많고 식기 상태가 불량합니다.","일반식"],
+    ["2026-05-09","A코너",3,"닭갈비에 고기보다 야채가 너무 많아요. 비율 조절 부탁합니다.","일반식"],
+    ["2026-05-12","B코너",5,"잔치국수 육수가 뜨끈해서 오늘 날씨에 딱 좋았습니다.","일반식"],
+    ["2026-05-12","C코너",2,"된장찌개가 너무 싱거워서 맛이 없었어요. 간을 더 맞춰주세요.","일반식"],
+    ["2026-05-13","A코너",2,"점심 양이 모자라서 부족했어요. 배식량 늘려주세요.","일반식"],
+    ["2026-05-13","테이크아웃",4,"포장 상태 깔끔하고 좋았어요. 다음에도 이용하겠습니다.","테이크아웃"],
+    ["2026-05-14","A코너",5,"오늘 갈비찜 정말 맛있었어요! 자주 나왔으면 좋겠습니다.","일반식"],
+    ["2026-05-14","C코너",2,"배식 줄이 너무 길고 오래 기다려서 점심시간이 부족했어요.","일반식"],
+    ["2026-05-15","테이크아웃",2,"포장 용기가 새서 가방이 더러워졌습니다. 개선 부탁합니다.","테이크아웃"],
+    ["2026-05-19","B코너",4,"음식 온도가 딱 맞고 메뉴 구성도 다양해서 만족스러웠어요.","일반식"],
+    ["2026-05-19","A코너",2,"국이 미지근해서 먹기 불편했습니다. 보온 유지 부탁드려요.","일반식"],
+    ["2026-05-19","C코너",5,"오늘 불고기 정말 맛있었어요! 훌륭한 한 끼였습니다.","일반식"],
+    ["2026-05-19","A코너",2,"반찬 구성이 너무 단조롭고 부실했어요. 다양화 부탁합니다.","일반식"],
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(SAMPLE);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+  await processWorkbook(wb);
+}
+
+
+// ── 보고서 저장 ───────────────────────────────────────────────
+function downloadReportHtml() {
+  const resultSection = document.getElementById("result-section");
+  if (!resultSection || resultSection.style.display === "none") {
+    alert("저장할 분석 결과가 없습니다.");
+    return;
+  }
+
+  const css = document.querySelector("style") ? document.querySelector("style").innerHTML : "";
+  const reportHtml = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOC 분석 보고서</title>
+<style>
+${css}
+.app-header,#upload-section,#progress-section,.btn-reset{display:none!important}
+#result-section{display:block!important;max-width:1280px;margin:0 auto;padding:24px}
+</style>
+</head>
+<body>
+${resultSection.outerHTML}
+</body>
+</html>`;
+
+  const blob = new Blob([reportHtml], { type:"text/html;charset=utf-8" });
+  const a = document.createElement("a");
+  const today = new Date().toISOString().slice(0,10);
+  a.href = URL.createObjectURL(blob);
+  a.download = `VOC_분석보고서_${today}.html`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  UI 헬퍼
+// ═══════════════════════════════════════════════════════════════
+function showProgress() {
+  document.getElementById("upload-section").style.display = "none";
+  document.getElementById("progress-section").style.display = "block";
+  document.getElementById("result-section").style.display  = "none";
+}
+function hideProgress() {
+  document.getElementById("progress-section").style.display = "none";
+}
+function setProgress(pct, msg) {
+  document.getElementById("progressBar").style.width  = pct + "%";
+  document.getElementById("progressText").textContent = msg;
+}
+function resetApp() {
+  document.getElementById("upload-section").style.display = "block";
+  document.getElementById("result-section").style.display  = "none";
+  document.getElementById("fileInput").value = "";
+}
+</script>
+</body>
+</html>
